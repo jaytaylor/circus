@@ -13,12 +13,14 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"time"
 
+	"gigawatt.io/oslib"
 	log "github.com/Sirupsen/logrus"
-	"github.com/gigawattio/oslib"
-	goose "github.com/jaytaylor/GoOse"
 	"github.com/spf13/cobra"
+	goose "jaytaylor.com/GoOse"
+	"jaytaylor.com/archive.is"
 )
 
 const NLPWebAddr = "127.0.0.1:8000"
@@ -35,8 +37,9 @@ type NamedEntities []NamedEntity
 
 var (
 	// Favorites string
-	Quiet   bool
-	Verbose bool
+	Quiet           bool
+	Verbose         bool
+	AltNLPWebServer string
 )
 
 func init() {
@@ -44,6 +47,7 @@ func init() {
 	// rootCmd.PersistentFlags().StringVarP(&Favorites, "favorites", "favs", "", "favorites.json file (`hn-utils' will be run when not provided")
 	rootCmd.PersistentFlags().BoolVarP(&Quiet, "quiet", "q", false, "Activate quiet log output")
 	rootCmd.PersistentFlags().BoolVarP(&Verbose, "verbose", "v", false, "Activate verbose log output")
+	rootCmd.PersistentFlags().StringVarP(&AltNLPWebServer, "nlpweb-server", "s", "", "Base URL to already running NLPWeb server (saves on the enormous overhead of launching and initializing one)")
 }
 
 func main() {
@@ -73,6 +77,8 @@ var rootCmd = &cobra.Command{
 				errorExit(fmt.Errorf("reading stdin: %s", err))
 			}
 			article, err = g.ExtractFromRawHTML("", string(bs))
+		} else if strings.HasSuffix(strings.ToLower(args[0]), ".pdf") { // TODO: Make more robust, with a proper URL parse.
+			article, err = handlePDF(args[0])
 		} else {
 			article, err = g.ExtractFromURL(args[0])
 		}
@@ -92,47 +98,57 @@ var rootCmd = &cobra.Command{
 		}
 
 		if _, ok := asMap["content"]; !ok {
-			errorExit(errors.New("no content found in article map"))
+			// log.Debug(string(asJSON))
+			if args[0] == "-" {
+				errorExit(errors.New("no content found in article map"))
+			} else {
+				asMap, asJSON, article, err = archiveIsFallback(args[0])
+				if err != nil {
+					errorExit(fmt.Errorf("no content found in article map, and fallback error was: %s", err))
+				}
+				if _, ok := asMap["content"]; !ok {
+					errorExit(errors.New("no content found in article map, even after applying archive.is fallback"))
+				}
+			}
 		}
 		plaintext := asMap["content"].(string)
 
-		nlpSig, nlpAck, err := launchNLPWeb()
+		err = withNLPWeb(func(nlpWebURL string) error {
+			u := fmt.Sprintf("%v/v1/named-entities?instance=lg", nlpWebURL)
+			resp, err := http.Post(u, "application/x-www-form-urlencoded", bytes.NewBufferString(plaintext))
+			if err != nil {
+				return fmt.Errorf("submitting article to ner extractor: %s", err)
+			}
+			if resp.StatusCode/100 != 2 {
+				return fmt.Errorf("article ner submission received non-2xx response status-code=%v", resp.StatusCode)
+			}
+
+			nesBody, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				return fmt.Errorf("reading article ner submission body: %s", err)
+			}
+			if err := resp.Body.Close(); err != nil {
+				return fmt.Errorf("closing article ner submission body: %s", err)
+			}
+
+			nes := NamedEntities{}
+			if err := json.Unmarshal(nesBody, &nes); err != nil {
+				return fmt.Errorf("unmarshalling named entities: %s", err)
+			}
+
+			asMap["namedEntities"] = nes
+
+			bs, err := json.MarshalIndent(&asMap, "", "    ")
+			if err != nil {
+				return fmt.Errorf("serializing final result: %s", err)
+			}
+			fmt.Println(string(bs))
+			return nil
+		})
+
 		if err != nil {
-			errorExit(fmt.Errorf("starting nlpweb.py: %s", err))
+			errorExit(err)
 		}
-
-		resp, err := http.Post(fmt.Sprintf("http://%v/v1/named-entities?instance=lg", NLPWebAddr), "application/x-www-form-urlencoded", bytes.NewBufferString(plaintext))
-		if err != nil {
-			errorExit(fmt.Errorf("submitting article to ner extractor: %s", err))
-		}
-		if resp.StatusCode/100 != 2 {
-			errorExit(fmt.Errorf("article ner submission received non-2xx response status-code=%v", resp.StatusCode))
-		}
-
-		nesBody, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			errorExit(fmt.Errorf("reading article ner submission body: %s", err))
-		}
-		if err := resp.Body.Close(); err != nil {
-			errorExit(fmt.Errorf("closing article ner submission body: %s", err))
-		}
-
-		nes := NamedEntities{}
-		if err := json.Unmarshal(nesBody, &nes); err != nil {
-			errorExit(fmt.Errorf("unmarshalling named entities: %s", err))
-		}
-
-		asMap["named-entities"] = nes
-
-		bs, err := json.MarshalIndent(&asMap, "", "    ")
-		if err != nil {
-			errorExit(fmt.Errorf("serializing final result: %s", err))
-		}
-
-		fmt.Println(string(bs))
-
-		nlpSig <- os.Interrupt
-		<-nlpAck
 	},
 }
 
@@ -143,6 +159,71 @@ var versionCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("goose-cli HTML Content / Article extractor command-line interface v0.0")
 	},
+}
+
+func archiveIsFallback(url string) (map[string]interface{}, []byte, *goose.Article, error) {
+	s, err := archiveis.Capture(url)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	article, err := goose.New().ExtractFromRawHTML(url, s)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	asJSON, err := json.MarshalIndent(*article, "", "    ")
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("marshalling article: %s", err)
+	}
+
+	asMap := map[string]interface{}{}
+	if err := json.Unmarshal(asJSON, &asMap); err != nil {
+		return nil, nil, nil, fmt.Errorf("unmarshalling to map: %s", err)
+	}
+	return asMap, asJSON, article, nil
+}
+
+func handlePDF(url string) (*goose.Article, error) {
+	cmd := exec.Command("bash", "-c", fmt.Sprintf("set -o errexit && set -o pipefail && set -o nounset && curl -sSL -o /tmp/pdf.pdf %q | gs -sDEVICE=txtwrite -o /tmp/pdf.txt /tmp/pdf.pdf", args[0]))
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("converting PDF to txt: %s", err)
+	}
+	text, err := ioutil.ReadFile("/tmp/pdf.txt")
+	article := &goose.Article{
+		CleanedText: string(text),
+	}
+	return article, nil
+}
+
+func withNLPWeb(fn func(baseURL string) error) error {
+	var baseURL string
+
+	if AltNLPWebServer == "" {
+		nlpSig, nlpAck, err := launchNLPWeb()
+		if err != nil {
+			return fmt.Errorf("starting nlpweb.py: %s", err)
+		}
+
+		defer func() {
+			nlpSig <- os.Interrupt
+			<-nlpAck
+		}()
+
+		baseURL = fmt.Sprintf("http://%v", NLPWebAddr)
+	} else {
+		baseURL = AltNLPWebServer
+	}
+
+	if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
+		baseURL = fmt.Sprintf("http://%v", baseURL)
+	}
+
+	err := fn(baseURL)
+
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func launchNLPWeb() (chan os.Signal, chan struct{}, error) {

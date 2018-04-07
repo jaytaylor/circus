@@ -1,0 +1,9 @@
+[submodule "quickstart/themes/Hugo-Octopress"]
+	path = quickstart/themes/Hugo-Octopress
+	url = https://github.com/parsiya/Hugo-Octopress
+[submodule "quickstart/themes/hugo-code-editor-theme"]
+	path = quickstart/themes/hugo-code-editor-theme
+	url = https://github.com/aubm/hugo-code-editor-theme
+[submodule "quickstart/themes/polymer"]
+	path = quickstart/themes/polymer
+	url = https://github.com/pdevty/polymer
