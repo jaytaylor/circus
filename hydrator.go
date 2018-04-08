@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"gigawatt.io/oslib"
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	goose "jaytaylor.com/GoOse"
 	"jaytaylor.com/archive.is"
@@ -40,6 +40,8 @@ var (
 	Quiet           bool
 	Verbose         bool
 	AltNLPWebServer string
+
+	PDFProcessorTimeout = 30 * time.Second
 )
 
 func init() {
@@ -157,7 +159,7 @@ var versionCmd = &cobra.Command{
 	Short: "Print version information for this thing",
 	Long:  "All software has versions. This is this the one for thing..",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("goose-cli HTML Content / Article extractor command-line interface v0.0")
+		fmt.Println("jay's hydrator thingamajig")
 	},
 }
 
@@ -183,12 +185,39 @@ func archiveIsFallback(url string) (map[string]interface{}, []byte, *goose.Artic
 }
 
 func handlePDF(url string) (*goose.Article, error) {
-	cmd := exec.Command("bash", "-c", fmt.Sprintf("set -o errexit && set -o pipefail && set -o nounset && curl -sSL -o /tmp/pdf.pdf %q | gs -sDEVICE=txtwrite -o /tmp/pdf.txt /tmp/pdf.pdf", args[0]))
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("converting PDF to txt: %s", err)
+	var (
+		ch   = make(chan error, 1)
+		text []byte
+		cmd  = exec.Command("bash", "-c", fmt.Sprintf("set -o errexit && set -o pipefail && set -o nounset && curl -sSL -o /tmp/pdf.pdf %q | gs -sDEVICE=txtwrite -o /tmp/pdf.txt /tmp/pdf.pdf", url))
+	)
+
+	go func() {
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			ch <- fmt.Errorf("converting PDF to txt: %s (output=%v)", err, string(out))
+			return
+		}
+		if text, err = ioutil.ReadFile("/tmp/pdf.txt"); err != nil {
+			ch <- err
+			return
+		}
+		ch <- nil
+	}()
+
+	select {
+	case err := <-ch:
+		if err != nil {
+			return nil, err
+		}
+	case <-time.After(PDFProcessorTimeout):
+		log.Errorf("Timed out after %s processing PDF from %v", PDFProcessorTimeout, url)
+		if err := cmd.Process.Kill(); err != nil {
+			log.Errorf("Failed to kill PDF converter process: %s", err)
+			return nil, fmt.Errorf("killing PDF converter process: %s", err)
+		}
+		return nil, fmt.Errorf("timed out after %s processing PDF from %v", PDFProcessorTimeout, url)
 	}
-	text, err := ioutil.ReadFile("/tmp/pdf.txt")
+
 	article := &goose.Article{
 		CleanedText: string(text),
 	}

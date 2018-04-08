@@ -7,3 +7,9 @@
 [submodule "quickstart/themes/polymer"]
 	path = quickstart/themes/polymer
 	url = https://github.com/pdevty/polymer
+[submodule "quickstart/themes/hugo-bootstrap-premium"]
+	path = quickstart/themes/hugo-bootstrap-premium
+	url = https://github.com/appernetic/hugo-bootstrap-premium
+[submodule "quickstart/themes/hugo-classic"]
+	path = quickstart/themes/hugo-classic
+	url = https://github.com/goodroot/hugo-classic

@@ -8,8 +8,8 @@ import (
 	"os/exec"
 	"os/signal"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/gigawattio/oslib"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 

@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"text/template"
 
-    "github.com/Masterminds/sprig"
-	log "github.com/Sirupsen/logrus"
+	"github.com/Masterminds/sprig"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
