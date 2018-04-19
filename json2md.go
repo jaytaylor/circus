@@ -31,26 +31,26 @@ func main() {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "json2md",
+	Use:   "json2md [input-path] [output-path]",
 	Short: "",
 	Long:  "",
-	Args:  cobra.MinimumNArgs(1),
+	Args:  cobra.MinimumNArgs(2),
 	PreRun: func(_ *cobra.Command, _ []string) {
 		initLogging()
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := os.MkdirAll("out", os.FileMode(int(0755))); err != nil {
+		if err := os.MkdirAll(args[1], os.FileMode(int(0755))); err != nil {
 			errorExit(fmt.Errorf("creating output directory: %s", err))
 		}
 
-		if err := convert(); err != nil {
+		if err := convert(args[0], args[1]); err != nil {
 			errorExit(err)
 		}
 	},
 }
 
-func convert() error {
-	filenames, err := filepath.Glob("data/*.json")
+func convert(inputPath string, outputPath string) error {
+	filenames, err := filepath.Glob(fmt.Sprintf("%v%v*.json", inputPath, string(os.PathSeparator)))
 	if err != nil {
 		return err
 	}
@@ -76,7 +76,7 @@ func convert() error {
 		if err := mdTemplate.Execute(buf, context); err != nil {
 			return fmt.Errorf("executing template for %q: %s", filename, err)
 		}
-		mdFilename := fmt.Sprintf("out/%v.md", context["ID"])
+		mdFilename := fmt.Sprintf("%v%v%v.md", outputPath, string(os.PathSeparator), context["ID"])
 		if err := ioutil.WriteFile(mdFilename, buf.Bytes(), os.FileMode(int(0644))); err != nil {
 			return fmt.Errorf("writing output file %q: %s", mdFilename, err)
 		}
@@ -104,6 +104,23 @@ var mdTemplate = template.Must(template.New("md").Funcs(sprig.TxtFuncMap()).Pars
 title: {{ .Title | quote }}
 date: {{ .Timestamp }}
 draft: false
+{{- if .Goose.namedEntities }}
+tags:
+  {{- range $ne := .Goose.namedEntities }}
+  {{- $ent := trimAll " \r\n\t" $ne.entity -}}
+  {{- if ne $ent "" }}
+  {{- if lt (len $ent) 50 }}
+  {{- if not (contains "--" $ent) }}
+  {{- if not (regexMatch "^[0-9.]+$" $ent) }}
+  {{- if regexMatch "^[a-zA-Z0-9 #_./-]+$" $ent }}
+  - {{ $ent | quote }}
+  {{- end }}
+  {{- end }}
+  {{- end }}
+  {{- end }}
+  {{- end }}
+  {{- end }}
+{{- end }}
 ---
 
 # {{ .Title }}
