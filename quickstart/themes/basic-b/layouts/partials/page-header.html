@@ -1,0 +1,8 @@
+partials/page-header.html
+
+<header class="post-header">
+    <h1 class="post-title">{{ .Title }}</h1>
+    {{ if .Description }}
+        <p class="post-description">{{ .Description }}</p>
+    {{ end }}
+</header>

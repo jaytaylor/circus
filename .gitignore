@@ -1,3 +1,7 @@
 *.sw[opa]
+
 *.pyc
+
 /venv
+/venv3
+

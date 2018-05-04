@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -15,11 +16,13 @@ import (
 )
 
 var (
+	Limit   int
 	Quiet   bool
 	Verbose bool
 )
 
 func init() {
+	rootCmd.PersistentFlags().IntVarP(&Limit, "limit", "l", -1, "Limit processing to the first N items")
 	rootCmd.PersistentFlags().BoolVarP(&Quiet, "quiet", "q", false, "Activate quiet log output")
 	rootCmd.PersistentFlags().BoolVarP(&Verbose, "verbose", "v", false, "Activate verbose log output")
 }
@@ -37,6 +40,9 @@ var rootCmd = &cobra.Command{
 	Args:  cobra.MinimumNArgs(2),
 	PreRun: func(_ *cobra.Command, _ []string) {
 		initLogging()
+		if Limit < -1 {
+			errorExit(errors.New("Invalid limit, must be an integer greater than -1"))
+		}
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := os.MkdirAll(args[1], os.FileMode(int(0755))); err != nil {
@@ -55,7 +61,12 @@ func convert(inputPath string, outputPath string) error {
 		return err
 	}
 
-	for _, filename := range filenames {
+	for i, filename := range filenames {
+		if Limit > -1 && i >= Limit {
+			log.WithField("limit", Limit).Debug("Max requested items reached")
+			break
+		}
+
 		data, err := ioutil.ReadFile(filename)
 		if err != nil {
 			return fmt.Errorf("reading file %q: %s", filename, err)
@@ -122,10 +133,6 @@ tags:
   {{- end }}
 {{- end }}
 ---
-
-# {{ .Title }}
-
-{{ .Timestamp }}
 
 [Source]({{ .URL }})
 

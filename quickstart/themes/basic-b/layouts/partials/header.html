@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="{{ with .Site.LanguageCode }}{{ . }}{{ else }}en-US{{ end }}">
+    <head>
+        <title>{{ .Title }} | {{ .Site.Title }}</title>
+        {{ .Hugo.Generator }}
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta charset="utf-8">
+        <meta name="author" content="{{ .Title }}">
+        <meta name="description" content="{{ .Site.Title }}">
+    </head>
+    <body>
+        partials/header.html
+
+        <p>This is the header!</p>
+        <main>

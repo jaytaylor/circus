@@ -7,11 +7,17 @@ set -o nounset
 set -x
 
 function main() {
+    local fast
+
+    fast="${1:-}"
+
     cd "$(dirname "$0")"
 
-    rm -rf quickstart/content/posts
-    go run json2md.go data quickstart/content/posts
-    echo 'Posts' > quickstart/content/posts/_index.md
+    if [ -z "${fast}" ] ; then
+        rm -rf quickstart/content/posts
+        go run json2md.go data quickstart/content/posts -l 500 -v
+        echo 'Posts' > quickstart/content/posts/_index.md
+    fi
 
     cd quickstart
     rm -rf public/*

@@ -1,0 +1,9 @@
+{{ $archYear := .Date.Format "2006" }}
+
+<h2>Archive for {{ $archYear }}</h2>
+
+{{ range where .Site.Pages "Section" "posts" }}
+    {{ if eq (.Date.Format "2006") $archYear }}
+        {{ partial "post/archive" . }}
+    {{ end }}
+{{ end }}
