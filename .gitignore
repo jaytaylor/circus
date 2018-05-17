@@ -1,7 +1,10 @@
 *.sw[opa]
+*.sublime-workspace
 
 *.pyc
 
+/scripts/hydrator
+/scripts/json2md
 /venv
 /venv3
 

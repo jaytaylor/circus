@@ -1,14 +1,59 @@
-pagination.html
+_internal/pagination.html
 
-{{ $pag := $.Paginator }}
-{{ if gt $pag.TotalPages 1 }}
-    <nav class="pagination" role="navigation">
-        <span class="page-number">Page {{ $pag.PageNumber }} of {{ $pag.TotalPages }}</span>
-        {{ if $pag.HasPrev }}
-            <a class="newer-posts" href="{{ $pag.Prev.URL }}">&larr; Newer Posts</a>
-        {{ end }}
-        {{ if $pag.HasNext }}
-            <a class="older-posts" href="{{ $pag.Next.URL }}">Older Posts &rarr;</a>
-        {{ end }}
-    </nav>
-{{ end }}
+<div id="page-bar">
+  {{ $curpage := .Paginator.PageNumber }}
+  {{ $lastpage := .Paginator.TotalPages }}
+
+  <!-- if we have previous pages show quick rewind buttons -->
+  {{ if .Paginator.HasPrev }}
+  <div class="pagenumber">
+   <a href="{{ .Paginator.First.URL }}"><span class="oi" data-glyph="caret-left" title="previous page" aria-hidden="true"></span><span class="oi" data-glyph="caret-left" title="previous page" aria-hidden="true"></span></a>
+  </div>
+  <div class="pagenumber">
+   <a href="{{ .Paginator.Prev.URL }}"><span class="oi" data-glyph="caret-left" title="previous page" aria-hidden="true"></span></a>
+  </div>
+  {{ end }}
+
+  <!-- get the width of the navpage in number of pages -->
+  {{ $pgtrspan := $.Site.Params.pgtrspan }}
+
+  <!-- get the index of the active page -->
+  {{ $pgtractive := $.Site.Params.pgtractive }}
+
+  {{ $lowerbound := sub $curpage (sub $pgtrspan (add $pgtractive 1)) }}
+  {{ $upperbound := add $curpage (sub $pgtrspan $pgtractive) }}
+
+  {{ if le $upperbound $pgtrspan }}
+    {{ $.Scratch.Set "lowerbound" 1 }}
+    {{ $.Scratch.Set "upperbound" $pgtrspan }}
+  {{ else if gt $upperbound $lastpage }}
+    {{ $.Scratch.Set "lowerbound" (add (sub $lastpage $pgtrspan) 1) }}
+    {{ $.Scratch.Set "upperbound" $lastpage }}
+  {{ else }}
+    {{ $.Scratch.Set "lowerbound" $lowerbound }}
+    {{ $.Scratch.Set "upperbound" $upperbound }}
+  {{ end }}
+
+  <!-- loop through paginator pages and only display stuff within the boundaries -->
+  {{ range $id, $pager := .Paginator.Pagers }}
+  {{ if and (ge $pager.PageNumber ($.Scratch.Get "lowerbound")) (le $pager.PageNumber ($.Scratch.Get "upperbound")) }}
+  <div class="pagenumber">
+    {{ if eq $curpage $pager.PageNumber }}
+      {{ $pager.PageNumber }}
+    {{ else }}
+      <a href="{{ $pager.URL }}">{{ $pager.PageNumber }}</a>
+    {{ end }}
+  </div>
+  {{ end }}
+  {{ end }}
+
+  <!-- if we have following pages show quick forward buttons -->
+  {{ if .Paginator.HasNext }}
+  <div class="pagenumber">
+   <a href="{{ .Paginator.Next.URL }}"><span class="oi" data-glyph="caret-right" title="next page" aria-hidden="true"></span></a>
+  </div>
+  <div class="pagenumber">
+   <a href="{{ .Paginator.Last.URL }}"><span class="oi" data-glyph="caret-right" title="previous page" aria-hidden="true"></span><span class="oi" data-glyph="caret-right" title="previous page" aria-hidden="true"></span></a>
+  </div>
+  {{ end }}
+</div>

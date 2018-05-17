@@ -134,13 +134,14 @@ tags:
 {{- end }}
 ---
 
-[Source]({{ .URL }})
-
 ID: {{ .ID }}
-
+|
+[Discussion]({{ .CommentsURL }}) ({{ .Points }} point{{ if ne (printf "%v" .Points) (printf "%v" 1) }}s{{ end }}, {{ .Comments }} comment{{ if ne (printf "%v" .Comments) (printf "%v" 1) }}s{{ end }})
+|
+[Original Source]({{ .URL }})
+|
 Submitted by: [{{ .Submitter }}](https://news.ycombinator.com/user?id={{ .Submitter }})
 
-[Discussion]({{ .CommentsURL }})
 
 {{ .Goose.content }}
 `))

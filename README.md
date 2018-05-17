@@ -7,7 +7,8 @@ More to come.
 ## Requirements
 
 * go 1.10 or newer
-* jaytaylor.com/hn-utils
+* [jaytaylor.com/archive.is](https://jaytaylor.com/archive.is)
+* [jaytaylor.com/hn-utils](jaytaylor.com/hn-utils)
 
 Ubuntu/Debian:
 

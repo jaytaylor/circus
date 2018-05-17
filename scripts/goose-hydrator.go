@@ -60,8 +60,8 @@ func main() {
 
 var rootCmd = &cobra.Command{
 	Use:   "hydrator",
-	Short: "",
-	Long:  "",
+	Short: "Identifies and tags main content in an HTML document",
+	Long:  "Use GoOse and SpaCy to extract main page content and tag it with keywordsa",
 	Args:  cobra.MinimumNArgs(1),
 	PreRun: func(_ *cobra.Command, _ []string) {
 		initLogging()
@@ -79,8 +79,10 @@ var rootCmd = &cobra.Command{
 				errorExit(fmt.Errorf("reading stdin: %s", err))
 			}
 			article, err = g.ExtractFromRawHTML("", string(bs))
-		} else if strings.HasSuffix(strings.ToLower(args[0]), ".pdf") { // TODO: Make more robust, with a proper URL parse.
-			article, err = handlePDF(args[0])
+		} else if strings.HasSuffix(strings.ToLower(args[0]), ".pdf") { // TODO: Make more robust, with a proper HTTP header content-type check.
+			log.Warn("STILL NEED TO IMPLEMENT BIN DATA SUPPORT AND JUST SERVE UP THE ARBITRARY BIN CONTENT + APPROPRIATE HEADER.")
+			log.Warn("---\nThere is still a lot to figure out between this and resurrecting deadlinks from archive.is and archive.org")
+			// article, err = handlePDF(args[0])
 		} else {
 			article, err = g.ExtractFromURL(args[0])
 		}
@@ -257,7 +259,7 @@ func withNLPWeb(fn func(baseURL string) error) error {
 
 func launchNLPWeb() (chan os.Signal, chan struct{}, error) {
 	cmd := exec.Command("/usr/bin/env", "bash", "-c",
-		fmt.Sprintf(": && set -o errexit && cd %q && source venv/bin/activate && python nlpweb.py %v", oslib.PathDirName(os.Args[0]), NLPWebAddr),
+		fmt.Sprintf(": && set -o errexit && cd %q && source ../venv/bin/activate && python ../nlpweb.py %v", oslib.PathDirName(os.Args[0]), NLPWebAddr),
 	)
 
 	{

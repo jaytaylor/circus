@@ -4,7 +4,7 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 
 python3 -m venv venv3
 . venv3/bin/activate

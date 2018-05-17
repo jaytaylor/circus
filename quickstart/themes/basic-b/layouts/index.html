@@ -2,9 +2,20 @@
 
 index.html
 
-{{ range .Site.RegularPages }}
+{{/*- range .Site.RegularPages }}
     <a href="{{ .Permalink }}">{{ .Title }}</a>
     <br>
-{{ end }}
+{{- end */}}
 
-{{ partial "footer.html" . }}
+{{ $paginator := .Paginate (.Data.Pages.GroupByDate "2006-01-02").Reverse }}
+{{- range $paginator.PageGroups }}
+{{- .Key -}}
+	{{- range .Pages }}
+<article>
+    <h2><a href="{{ .Permalink }}">{{ .Title }}</a></h2>
+</article>
+	{{- end }}
+{{- end }}
+{{- partial "pagination.html" . }}
+
+{{- partial "footer.html" . }}
