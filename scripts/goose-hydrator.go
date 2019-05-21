@@ -20,10 +20,12 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	goose "jaytaylor.com/GoOse"
-	"jaytaylor.com/archive.is"
+	archiveis "jaytaylor.com/archive.is"
 )
 
 const NLPWebAddr = "127.0.0.1:8000"
+
+const UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.162 Safari/537.36"
 
 // NamedEntity represents a named-entity as it relates to a document.
 type NamedEntity struct {
@@ -40,6 +42,7 @@ var (
 	Quiet           bool
 	Verbose         bool
 	AltNLPWebServer string
+	RequestTimeout  time.Duration
 
 	PDFProcessorTimeout = 30 * time.Second
 )
@@ -50,6 +53,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&Quiet, "quiet", "q", false, "Activate quiet log output")
 	rootCmd.PersistentFlags().BoolVarP(&Verbose, "verbose", "v", false, "Activate verbose log output")
 	rootCmd.PersistentFlags().StringVarP(&AltNLPWebServer, "nlpweb-server", "s", "", "Base URL to already running NLPWeb server (saves on the enormous overhead of launching and initializing one)")
+	rootCmd.PersistentFlags().DurationVarP(&RequestTimeout, "http-timeout", "t", 10*time.Second, "HTTP timeout value when downloading HTML content")
 }
 
 func main() {
@@ -68,6 +72,7 @@ var rootCmd = &cobra.Command{
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		var (
+			content []byte
 			g       = goose.New()
 			article *goose.Article
 			err     error
@@ -82,9 +87,15 @@ var rootCmd = &cobra.Command{
 		} else if strings.HasSuffix(strings.ToLower(args[0]), ".pdf") { // TODO: Make more robust, with a proper HTTP header content-type check.
 			log.Warn("STILL NEED TO IMPLEMENT BIN DATA SUPPORT AND JUST SERVE UP THE ARBITRARY BIN CONTENT + APPROPRIATE HEADER.")
 			log.Warn("---\nThere is still a lot to figure out between this and resurrecting deadlinks from archive.is and archive.org")
-			// article, err = handlePDF(args[0])
+			if content, err = handlePDF(args[0]); err != nil {
+				errorExit(fmt.Errorf("downloading and converting PDF to HTML: %s", err))
+			}
+			article, err = g.ExtractFromRawHTML(args[0], string(content))
 		} else {
-			article, err = g.ExtractFromURL(args[0])
+			if content, err = download(args[0], RequestTimeout); err != nil {
+				errorExit(fmt.Errorf("downloading article: %s", err))
+			}
+			article, err = g.ExtractFromRawHTML(args[0], string(content))
 		}
 		if err != nil {
 			errorExit(fmt.Errorf("extracting article: %s", err))
@@ -100,13 +111,14 @@ var rootCmd = &cobra.Command{
 		if err := json.Unmarshal(asJSON, &asMap); err != nil {
 			errorExit(fmt.Errorf("unmarshalling to map: %s", err))
 		}
+		//errorExit(fmt.Errorf("%s", asMap))
 
 		if _, ok := asMap["content"]; !ok {
 			// log.Debug(string(asJSON))
 			if args[0] == "-" {
 				errorExit(errors.New("no content found in article map"))
 			} else {
-				asMap, asJSON, article, err = archiveIsFallback(args[0])
+				asMap, asJSON, article, err = archiveIsFallback(args[0], RequestTimeout)
 				if err != nil {
 					errorExit(fmt.Errorf("no content found in article map, and fallback error was: %s", err))
 				}
@@ -165,11 +177,24 @@ var versionCmd = &cobra.Command{
 	},
 }
 
-func archiveIsFallback(url string) (map[string]interface{}, []byte, *goose.Article, error) {
-	s, err := archiveis.Capture(url)
+func archiveIsFallback(url string, timeout time.Duration) (map[string]interface{}, []byte, *goose.Article, error) {
+	var s string
+
+	snapshots, err := archiveis.Search(url, timeout)
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	if len(snapshots) > 0 {
+		content, err := download(url, timeout)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		s = string(content)
+	}
+	//s, err := archiveis.Capture(url)
+	//if err != nil {
+	//	return nil, nil, nil, err
+	//}
 	article, err := goose.New().ExtractFromRawHTML(url, s)
 	if err != nil {
 		return nil, nil, nil, err
@@ -186,20 +211,20 @@ func archiveIsFallback(url string) (map[string]interface{}, []byte, *goose.Artic
 	return asMap, asJSON, article, nil
 }
 
-func handlePDF(url string) (*goose.Article, error) {
+func handlePDF(url string) ([]byte, error) {
 	var (
 		ch   = make(chan error, 1)
 		text []byte
-		cmd  = exec.Command("bash", "-c", fmt.Sprintf("set -o errexit && set -o pipefail && set -o nounset && curl -sSL -o /tmp/pdf.pdf %q | gs -sDEVICE=txtwrite -o /tmp/pdf.txt /tmp/pdf.pdf", url))
+		cmd  = exec.Command("bash", "-c", fmt.Sprintf("set -o errexit && set -o pipefail && set -o nounset && curl -k -sSL -o /tmp/pdf.pdf %q | pdf2htmlEX --auto-hint 1 --correct-text-visibility 1 --process-annotation 1 /tmp/pdf.pdf /tmp/pdf.html", url))
 	)
 
 	go func() {
 		out, err := cmd.CombinedOutput()
 		if err != nil {
-			ch <- fmt.Errorf("converting PDF to txt: %s (output=%v)", err, string(out))
+			ch <- fmt.Errorf("converting PDF to HTML: %s (output=%v)", err, string(out))
 			return
 		}
-		if text, err = ioutil.ReadFile("/tmp/pdf.txt"); err != nil {
+		if text, err = ioutil.ReadFile("/tmp/pdf.html"); err != nil {
 			ch <- err
 			return
 		}
@@ -211,6 +236,7 @@ func handlePDF(url string) (*goose.Article, error) {
 		if err != nil {
 			return nil, err
 		}
+
 	case <-time.After(PDFProcessorTimeout):
 		log.Errorf("Timed out after %s processing PDF from %v", PDFProcessorTimeout, url)
 		if err := cmd.Process.Kill(); err != nil {
@@ -220,10 +246,7 @@ func handlePDF(url string) (*goose.Article, error) {
 		return nil, fmt.Errorf("timed out after %s processing PDF from %v", PDFProcessorTimeout, url)
 	}
 
-	article := &goose.Article{
-		CleanedText: string(text),
-	}
-	return article, nil
+	return text, nil
 }
 
 func withNLPWeb(fn func(baseURL string) error) error {
@@ -351,4 +374,85 @@ func initLogging() {
 		level = log.ErrorLevel
 	}
 	log.SetLevel(level)
+}
+
+func download(url string, timeout time.Duration) ([]byte, error) {
+	req, err := newGetRequest(url)
+	if err != nil {
+		return nil, err
+	}
+
+	client := newClient(timeout)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode/100 != 2 {
+		log.WithField("url", url).WithField("status-code", resp.StatusCode).Error("Received non-2xx response from URL (falling back to archive.is search)")
+		// Fallback to archive.is.
+		snapshots, err := archiveis.Search(url, timeout)
+		log.WithField("url", url).WithField("snapshots", len(snapshots)).Info("Found archive.is snapshots")
+		if err == nil && len(snapshots) > 0 {
+			if req, err = newGetRequest(snapshots[0].URL); err == nil {
+				if resp, err = client.Do(req); err != nil {
+					log.WithField("url", snapshots[0].URL).Errorf("Received error from URL: %s", err)
+					return nil, fmt.Errorf("even archive.is fallback failed: %s", err)
+				}
+				if resp.StatusCode/100 != 2 {
+					log.WithField("url", snapshots[0].URL).WithField("status-code", resp.StatusCode).Error("Received non-2xx response from URL")
+					return nil, fmt.Errorf("even archive.is fallback produced non-2xx response status code=%v", resp.StatusCode)
+				}
+			}
+		}
+	}
+
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading body from %v: %s", url, err)
+	}
+	if err := resp.Body.Close(); err != nil {
+		return data, fmt.Errorf("closing body from %v: %s", url, err)
+	}
+
+	return data, nil
+
+}
+
+func newGetRequest(url string) (*http.Request, error) {
+	req, err := http.NewRequest("", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating get request to %v: %s", url, err)
+	}
+
+	split := strings.Split(url, "://")
+	proto := split[0]
+	hostname := strings.Split(split[1], "/")[0]
+
+	req.Header.Set("Host", hostname)
+	req.Header.Set("Origin", hostname)
+	req.Header.Set("Authority", hostname)
+	req.Header.Set("User-Agent", UserAgent)
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8")
+	req.Header.Set("Referer", fmt.Sprintf("%v://%v", proto, hostname))
+
+	return req, nil
+}
+
+func newClient(timeout time.Duration) *http.Client {
+	c := &http.Client{
+		Timeout: timeout,
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			Dial: (&net.Dialer{
+				Timeout:   timeout,
+				KeepAlive: timeout,
+			}).Dial,
+			TLSHandshakeTimeout:   timeout,
+			ResponseHeaderTimeout: timeout,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+	}
+	return c
 }
