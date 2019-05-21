@@ -141,7 +141,10 @@ ID: {{ .ID }}
 [Original Source]({{ .URL }})
 |
 Submitted by: [{{ .Submitter }}](https://news.ycombinator.com/user?id={{ .Submitter }})
-
+|
+Archives:
+[archive.is](https://archive.is/{{ .URL }})
+[archive.org](https://web.archive.org/web/*/{{ .URL }})
 
 {{ .Goose.content }}
 `))

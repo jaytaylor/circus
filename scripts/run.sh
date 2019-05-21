@@ -6,5 +6,5 @@ set -o nounset
 
 here="$(dirname "$0")"
 
-"${here}/generate-site.sh" -s "${here}/../upvotes-data" -o "${here}/../quickstart"
+"${here}/generate-site.sh" -s "${here}/../upvotes-data" -o "${here}/../quickstart" -l 100
 

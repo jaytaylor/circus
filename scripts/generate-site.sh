@@ -11,19 +11,19 @@ function showHelp() {
     echo ".---------------.------------+----------------------------.--------------." 1>&2
     echo "| flag          | description                             | env-var      |" 1>&2
     echo "+---------------+-----------------------------------------+--------------+" 1>&2
-    echo "| -f             Fast mode - skips content tagging and MD   \$fast=true|1 |" 1>&2
+    echo "| -f             Fast mode - skips content tagging and MD   \$FAST=true|1 |" 1>&2
     echo "|                rendering (uses / requires stale data)                  |" 1>&2
     echo "|                                                                        |" 1>&2
     echo "| -h, ?          This help document                                      |" 1>&2
     echo "|                                                                        |" 1>&2
-    echo "| -l <limit>     Maximum number of articles to process      \$limit       |" 1>&2
+    echo "| -l <limit>     Maximum number of articles to process      \$LIMIT       |" 1>&2
     echo "|                (default: 500)                                          |" 1>&2
     echo "|                                                                        |" 1>&2
-    echo "| -o <dir-path>  Huge base directory                        \$hugoDir     |" 1>&2
+    echo "| -o <dir-path>  Huge base directory                        \$HUGO_DIR    |" 1>&2
     echo "|                                                                        |" 1>&2
-    echo "| -s <dir-path>  JSON data source directory                 \$srcDir      |" 1>&2
+    echo "| -s <dir-path>  JSON data source directory                 \$SRC_DIR     |" 1>&2
     echo "|                                                                        |" 1>&2
-    echo "| -v             Enable verbose output                      \$verbose     |" 1>&2
+    echo "| -v             Enable verbose output                      \$VERBOSE     |" 1>&2
     echo "|                                                                        |" 1>&2
     echo '`'"-------------'-------------------------------------------'--------------'" 1>&2
 }
@@ -42,14 +42,16 @@ function main() {
 
     OPTIND=1
 
-    fast="${fast:-}"
-    limit="${limit:-500}"
-    verbose="${verbose:-}"
+    fast="${FAST:-}"
+    limit="${LIMIT:-500}"
+    hugoDir="${HUGO_DIR:-}"
+    srcDir="${SRC_DIR:-}"
+    verbose="${VERBOSE:-}"
 
     while getopts "fh?l:o:s:v" OPT; do
         case "${OPT}" in
         f)
-            fast=true
+            fast='true'
             ;;
         h|\?)
             showHelp
@@ -65,7 +67,7 @@ function main() {
             srcDir="${OPTARG}"
             ;;
         v)
-            verbose=true
+            verbose='true'
             ;;
         *)
             echo "ERROR: unrecognized parameter \"${OPT}\"" 1>&2
@@ -76,13 +78,13 @@ function main() {
 
     [ "${1:-}" = '--' ] && shift
 
-    echo 'DEBUG: Configuration' 1>&2
-    echo 'DEBUG: -------------' 1>&2
-    echo "DEBUG:    fast=${fast}" 1>&2
-    echo "DEBUG:   limit=${fast}" 1>&2
-    echo "DEBUG: hugoDir=${hugoDir}" 1>&2
-    echo "DEBUG:  srcDir=${srcDir}" 1>&2
-    echo 'DEBUG: -------------' 1>&2
+    echo "DEBUG: $0 Configuration" 1>&2
+    echo "DEBUG: $(echo "${0}" | python -c 'import sys; sys.stdout.write("-" * len(sys.stdin.read()))')-------------" 1>&2
+    echo "DEBUG:    fast: ${fast}" 1>&2
+    echo "DEBUG: hugoDir: ${hugoDir}" 1>&2
+    echo "DEBUG:   limit: ${limit}" 1>&2
+    echo "DEBUG:  srcDir: ${srcDir}" 1>&2
+    echo "DEBUG: $(echo "${0}" | python -c 'import sys; sys.stdout.write("-" * len(sys.stdin.read()))')-------------" 1>&2
 
     if [ -z "${hugoDir}" ] ; then
         echo 'ERROR: missing required parameter: -o <hugo-dir-path>'
