@@ -46,3 +46,19 @@
  585  2019-01-16 19:51:27 history | less
 ```
 
+Also need:
+
+```bash
+pip install Pygments
+
+# Pygments 'solarized-dark' theme.
+#
+# Needs class name modification to work with current config.toml "solarized_dark" name.
+#
+# git clone https://github.com/gthank/solarized-dark-pygments venv3/lib/python3.6/site-packages/pygments/styles/solarized-dark-pygments
+git clone https://github.com/gthank/solarized-dark-pygments
+sed -i 's/class Solarized/class Solarized_Dark/' solarized-dark-pygments/solarized.py
+cp solarized-dark-pygments/solarized.py venv3/lib/python3.6/site-packages/pygments/styles/solarized_dark.py
+rm -rf solarized-dark-pygments
+```
+

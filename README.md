@@ -6,16 +6,23 @@ More to come.
 
 ## Requirements
 
-* go 1.10 or newer
+* [Go](https://golang.org) 1.10 or newer
+
 * [jaytaylor.com/archive.is](https://jaytaylor.com/archive.is)
 
-`go get github.com/jaytaylor/archive.is/...`
+```bash
+go get jaytaylor.com/archive.is/...
+```
 
 * [jaytaylor.com/hn-utils](jaytaylor.com/hn-utils)
 
-`go get github.com/jaytaylor/hn-utils/...`
+```bash
+go get jaytaylor.com/hn-utils/...
+```
 
-* pdf2htmlEX for PDF -> HTML5 conversion
+* [Python 3](https://www.python.org/download/releases/3.0/)
+
+* [pdf2htmlEX](https://github.com/coolwanglu/pdf2htmlEX) for PDF -> HTML5 conversion
 
 ```bash
 git clone git://github.com/coolwanglu/pdf2htmlEX.git
