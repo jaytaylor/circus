@@ -50,6 +50,11 @@ posts = "/hn/:year/:month/:day/:slug/"
 #   tag = "tags"
 #   category = "categories"
 
+[taxonomies]
+  category = "categories"
+  series = "series"
+  tag = "tags"
+
 [params]
   pgtrspan = 6
   pgtractive = 3

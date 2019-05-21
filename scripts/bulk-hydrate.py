@@ -18,6 +18,8 @@ def parse_flags(args):
     parser = argparse.ArgumentParser(description='Bulk hydrator for HN stories')
     parser.add_argument('--verbose', '-v', help='Enable verbose log output.', action='store_true')
     parser.add_argument('--quiet', '-q', help='Only log errors.', action='store_true')
+    parser.add_argument('--skip-existing', '-s', help='Skip already hydrated stories for which a destination JSON file exists.', action='store_true')
+    parser.add_argument('--halt-on-error', '-e', help='Exit immediately if an error is encountered.', action='store_true')
     parser.add_argument('stories_json_file', help='Input file containing array of HN stories', nargs=1)
     parser.add_argument('output_dir', help='Output directory', nargs=1)
 
@@ -61,16 +63,35 @@ def main(args):
         subprocess.check_call(['go', 'build', '-o', hydrator_bin, '%s.go' % (hydrator_bin,)])
 
         for item in items:
+            output_file = '%s/%s.json' % (flags.output_dir[0], item['ID'],)
+            if flags.skip_existing and os.path.isfile(output_file):
+                logger.debug('Skipping URL=%s: output file=%s already exists and flags.skip_existing is enabled', item['URL'], output_file)
+                continue
+
             url = item['URL']
             logger.info('URL=%s', url)
             try:
-                item['Goose'] = json.loads(subprocess.check_output([hydrator_bin, '-v', '-s', '127.0.0.1:8000', url]))
-                with open('%s/%s.json' % (flags.output_dir[0], item['ID'],), 'w') as fh:
+                hydrator_cmd = [hydrator_bin, '-s', '127.0.0.1:8000', url]
+                if flags.verbose:
+                    hydrator_cmd.append('-v')
+                if flags.quiet:
+                    hydrator_cmd.append('-q')
+
+                item['Goose'] = json.loads(subprocess.check_output(hydrator_cmd))
+
+                try:
+                    item['Archiveis'] = json.loads(subprocess.check_output(['archive.is-snapshots', url]))
+                except subprocess.CalledProcessError as e:
+                    logger.exception('archive.is-snapshots for url=%s', url)
+
+                with open(output_file, 'w') as fh:
                     json.dump(item, fh)
             except subprocess.CalledProcessError as e:
                 logger.error('Error for URL=%s: %s', url, e)
+                if flags.halt_on_error:
+                    sys.exit(1)
 
-        logger.info('Processed %s items', len(items))
+        logger.info('Processed %s items this run', len(items))
 
         #sys.stdout.write(json.dumps(items))
 
