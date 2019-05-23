@@ -47,6 +47,7 @@ function main() {
     hugoDir="${HUGO_DIR:-}"
     srcDir="${SRC_DIR:-}"
     verbose="${VERBOSE:-}"
+    v=''
 
     while getopts "fh?l:o:s:v" OPT; do
         case "${OPT}" in
@@ -68,6 +69,7 @@ function main() {
             ;;
         v)
             verbose='true'
+            v='-v'
             ;;
         *)
             echo "ERROR: unrecognized parameter \"${OPT}\"" 1>&2
@@ -102,13 +104,14 @@ function main() {
 
     if [ "${fast:-}" != 'true' ] && [ "${fast:-}" != '1' ] ; then
         rm -rf "${hugoDir}/content/posts"
-        go run "$(dirname "$0")/json2md.go" "${srcDir}" "${hugoDir}/content/posts" -l "${limit}" -v
+        go run "$(dirname "$0")/json2md.go" "${srcDir}" "${hugoDir}/content/posts" -l "${limit}" ${v}
         echo 'Posts' > "${hugoDir}/content/posts/_index.md"
     fi
 
     rm -rf "${hugoDir}/public/"*
     cd "${hugoDir}"
-    hugo --stepAnalysis
+    hugo
+    #--stepAnalysis
     cd -
 
     if [ -e /var/www/jaytaylor.com/public_html/hn ] ; then

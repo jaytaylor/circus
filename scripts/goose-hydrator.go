@@ -21,21 +21,12 @@ import (
 	"github.com/spf13/cobra"
 	goose "jaytaylor.com/GoOse"
 	archiveis "jaytaylor.com/archive.is"
+	"jaytaylor.com/circus/domain"
 )
 
 const NLPWebAddr = "127.0.0.1:8000"
 
 const UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.162 Safari/537.36"
-
-// NamedEntity represents a named-entity as it relates to a document.
-type NamedEntity struct {
-	Frequency int    `json:"frequency"` // Number of occurrences in document.
-	Entity    string `json:"entity"`    // String content value of entity.
-	Label     string `json:"label"`     // Category of named entity.
-	POS       string `json:"pos"`       // Part-of-speech.
-}
-
-type NamedEntities []NamedEntity
 
 var (
 	// Favorites string
@@ -72,10 +63,10 @@ var rootCmd = &cobra.Command{
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		var (
-			content []byte
-			g       = goose.New()
-			article *goose.Article
-			err     error
+			content  []byte
+			g        = goose.New()
+			gArticle *goose.Article
+			err      error
 		)
 
 		if args[0] == "-" {
@@ -83,55 +74,46 @@ var rootCmd = &cobra.Command{
 			if err != nil {
 				errorExit(fmt.Errorf("reading stdin: %s", err))
 			}
-			article, err = g.ExtractFromRawHTML("", string(bs))
+			gArticle, err = g.ExtractFromRawHTML("", string(bs))
 		} else if strings.HasSuffix(strings.ToLower(args[0]), ".pdf") { // TODO: Make more robust, with a proper HTTP header content-type check.
 			log.Warn("STILL NEED TO IMPLEMENT BIN DATA SUPPORT AND JUST SERVE UP THE ARBITRARY BIN CONTENT + APPROPRIATE HEADER.")
 			log.Warn("---\nThere is still a lot to figure out between this and resurrecting deadlinks from archive.is and archive.org")
 			if content, err = handlePDF(args[0]); err != nil {
 				errorExit(fmt.Errorf("downloading and converting PDF to HTML: %s", err))
 			}
-			article, err = g.ExtractFromRawHTML(args[0], string(content))
+			gArticle, err = g.ExtractFromRawHTML(args[0], string(content))
 		} else {
 			if content, err = download(args[0], RequestTimeout); err != nil {
 				errorExit(fmt.Errorf("downloading article: %s", err))
 			}
-			article, err = g.ExtractFromRawHTML(args[0], string(content))
+			gArticle, err = g.ExtractFromRawHTML(args[0], string(content))
 		}
 		if err != nil {
 			errorExit(fmt.Errorf("extracting article: %s", err))
 		}
 		// https://brandur.org/rust-web -o json > rust.json | jq -r '.content' < rust.json | curl 'http://127.0.0.1:8000/v1/named-entities?instance=lg' -d@- > ners.json
 
-		asJSON, err := json.MarshalIndent(*article, "", "    ")
-		if err != nil {
-			errorExit(fmt.Errorf("marshalling article: %s", err))
+		article := &domain.Article{
+			Article: gArticle,
 		}
 
-		asMap := map[string]interface{}{}
-		if err := json.Unmarshal(asJSON, &asMap); err != nil {
-			errorExit(fmt.Errorf("unmarshalling to map: %s", err))
-		}
-		//errorExit(fmt.Errorf("%s", asMap))
-
-		if _, ok := asMap["content"]; !ok {
-			// log.Debug(string(asJSON))
+		if len(article.CleanedText) == 0 {
 			if args[0] == "-" {
-				errorExit(errors.New("no content found in article map"))
+				errorExit(errors.New("no content found in article"))
 			} else {
-				asMap, asJSON, article, err = archiveIsFallback(args[0], RequestTimeout)
+				article, err = archiveIsFallback(args[0], RequestTimeout)
 				if err != nil {
-					errorExit(fmt.Errorf("no content found in article map, and fallback error was: %s", err))
+					errorExit(fmt.Errorf("no content found in article, and fallback error was: %s", err))
 				}
-				if _, ok := asMap["content"]; !ok {
-					errorExit(errors.New("no content found in article map, even after applying archive.is fallback"))
+				if len(article.CleanedText) == 0 {
+					errorExit(errors.New("no content found in article, even after applying archive.is fallback"))
 				}
 			}
 		}
-		plaintext := asMap["content"].(string)
 
 		err = withNLPWeb(func(nlpWebURL string) error {
 			u := fmt.Sprintf("%v/v1/named-entities?instance=lg", nlpWebURL)
-			resp, err := http.Post(u, "application/x-www-form-urlencoded", bytes.NewBufferString(plaintext))
+			resp, err := http.Post(u, "application/x-www-form-urlencoded", bytes.NewBufferString(article.CleanedText))
 			if err != nil {
 				return fmt.Errorf("submitting article to ner extractor: %s", err)
 			}
@@ -147,14 +129,14 @@ var rootCmd = &cobra.Command{
 				return fmt.Errorf("closing article ner submission body: %s", err)
 			}
 
-			nes := NamedEntities{}
+			nes := domain.NamedEntities{}
 			if err := json.Unmarshal(nesBody, &nes); err != nil {
 				return fmt.Errorf("unmarshalling named entities: %s", err)
 			}
 
-			asMap["namedEntities"] = nes
+			article.NamedEntities = nes
 
-			bs, err := json.MarshalIndent(&asMap, "", "    ")
+			bs, err := json.MarshalIndent(article, "", "    ")
 			if err != nil {
 				return fmt.Errorf("serializing final result: %s", err)
 			}
@@ -177,17 +159,17 @@ var versionCmd = &cobra.Command{
 	},
 }
 
-func archiveIsFallback(url string, timeout time.Duration) (map[string]interface{}, []byte, *goose.Article, error) {
+func archiveIsFallback(url string, timeout time.Duration) (*domain.Article, error) {
 	var s string
 
 	snapshots, err := archiveis.Search(url, timeout)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 	if len(snapshots) > 0 {
 		content, err := download(url, timeout)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, err
 		}
 		s = string(content)
 	}
@@ -195,20 +177,14 @@ func archiveIsFallback(url string, timeout time.Duration) (map[string]interface{
 	//if err != nil {
 	//	return nil, nil, nil, err
 	//}
-	article, err := goose.New().ExtractFromRawHTML(url, s)
+	gArticle, err := goose.New().ExtractFromRawHTML(url, s)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
-	asJSON, err := json.MarshalIndent(*article, "", "    ")
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("marshalling article: %s", err)
+	article := &domain.Article{
+		Article: gArticle,
 	}
-
-	asMap := map[string]interface{}{}
-	if err := json.Unmarshal(asJSON, &asMap); err != nil {
-		return nil, nil, nil, fmt.Errorf("unmarshalling to map: %s", err)
-	}
-	return asMap, asJSON, article, nil
+	return article, nil
 }
 
 func handlePDF(url string) ([]byte, error) {
