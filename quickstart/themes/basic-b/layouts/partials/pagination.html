@@ -50,10 +50,10 @@ _internal/pagination.html
   <!-- if we have following pages show quick forward buttons -->
   {{ if .Paginator.HasNext }}
   <div class="pagenumber">
-   <a href="{{ .Paginator.Next.URL }}"><span class="oi" data-glyph="caret-right" title="next page" aria-hidden="true"></span></a>
+    <a href="{{ .Paginator.Next.URL }}"><span class="oi" data-glyph="caret-right" title="next page" aria-hidden="true"></span></a>
   </div>
   <div class="pagenumber">
-   <a href="{{ .Paginator.Last.URL }}"><span class="oi" data-glyph="caret-right" title="previous page" aria-hidden="true"></span><span class="oi" data-glyph="caret-right" title="previous page" aria-hidden="true"></span></a>
+    <a href="{{ .Paginator.Last.URL }}"><span class="oi" data-glyph="caret-right" title="previous page" aria-hidden="true"></span><span class="oi" data-glyph="caret-right" title="previous page" aria-hidden="true"></span></a>
   </div>
   {{ end }}
 </div>

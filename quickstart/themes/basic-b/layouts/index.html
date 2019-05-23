@@ -7,7 +7,8 @@ index.html
     <br>
 {{- end */}}
 
-{{ $paginator := .Paginate (.Data.Pages.GroupByDate "2006-01-02").Reverse }}
+{{/* $paginator := .Paginate (.Data.Pages.GroupByDate "2006-01-02").Reverse */}}
+{{ $paginator := .Paginate (.Data.Pages.GroupByDate "2006-01-02") }}
 {{- range $paginator.PageGroups }}
 {{- .Key -}}
 	{{- range .Pages }}

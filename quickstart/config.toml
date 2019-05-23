@@ -1,4 +1,4 @@
-baseurl = "https://jaytaylor.com/hn"
+baseurl = "https://b.jaytaylor.com/"
 languageCode = "en-us"
 title = "hackurls / HN Highlights"
 #theme = "Hugo-Octopress"
@@ -37,12 +37,12 @@ disableKinds = ["section"]
 
 [permalinks]
 # :title is used if :slug is not defined in post frontmatter
-archy = "/hn/:year/"
-archm = "/hn/:year/:month/"
-archd = "/hn/:year/:month/"
-posts = "/hn/:year/:month/:day/:slug/"
-#post = "/hn/:year/:month/:day/:slug/"
-#post = "/hn/:year-:month-:day-:title/" # change the post URL to look like the old ones
+archy = "/:year/"
+archm = "/:year/:month/"
+archd = "/:year/:month/"
+posts = "/:year/:month/:day/:slug/"
+#post = "/:year/:month/:day/:slug/"
+#post = "/:year-:month-:day-:title/" # change the post URL to look like the old ones
 
 # Make tags and categories work
 # As of Hugo v0.33 these are not needed anymore

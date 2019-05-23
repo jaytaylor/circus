@@ -1,6 +1,7 @@
 partials/post-footer.html
 
 <footer class="post-footer clearfix">
+{{/*
     {{ if .Params.tags }}
         <p class="post-tags">
             <span>Tagged:</span>
@@ -12,7 +13,7 @@ partials/post-footer.html
         </p>
     {{ end}}
 
-    <div class="share">
+        <div class="share">
         {{ if or (not (isset .Site.Params "sharetwitter")) .Site.Params.shareTwitter }}
             <a class="icon-twitter" href="https://twitter.com/share?text={{ .Title }}&url={{ .Permalink }}"
                 onclick="window.open(this.href, 'twitter-share', 'width=550,height=235');return false;">
@@ -44,4 +45,5 @@ partials/post-footer.html
             </a>
         {{ end }}
     </div>
+*/}}
 </footer>
