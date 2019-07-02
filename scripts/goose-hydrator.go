@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"gigawatt.io/oslib"
+	"github.com/onrik/logrus/filename"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	goose "jaytaylor.com/GoOse"
@@ -342,6 +343,9 @@ func errorExit(err interface{}) {
 }
 
 func initLogging() {
+	// Add filenames and line numbers to log lines.
+	log.AddHook(filename.NewHook())
+
 	level := log.InfoLevel
 	if Verbose {
 		level = log.DebugLevel
